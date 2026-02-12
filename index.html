@@ -3,46 +3,92 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cinma Online - أفلام ومسلسلات</title>
+    <title>Cinma Online | عالم الأفلام والمسلسلات</title>
     <style>
-        body { background-color: #121212; color: #fff; font-family: sans-serif; margin: 0; padding: 0; }
-        header { background: #1f1f1f; padding: 15px; text-align: center; border-bottom: 2px solid #e50914; }
-        h1 { color: #e50914; margin: 0; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 15px; padding: 15px; }
-        .card { background: #1e1e1e; border-radius: 8px; overflow: hidden; }
-        .card img { width: 100%; height: 220px; object-fit: cover; }
-        .title { padding: 10px; font-size: 14px; text-align: center; }
-        /* نافذة المشاهدة */
-        #viewer { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); align-items: center; justify-content: center; flex-direction: column; }
-        iframe { width: 90%; height: 60%; border: none; }
-        .close { color: #fff; font-size: 24px; margin-bottom: 10px; cursor: pointer; background: none; border: none; }
+        :root { --main-color: #e50914; --bg-color: #141414; --card-bg: #2f2f2f; }
+        body { background-color: var(--bg-color); color: white; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; }
+        
+        /* الهيدر */
+        header { background: linear-gradient(to bottom, rgba(0,0,0,0.9), transparent); padding: 20px 5%; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; }
+        .logo { color: var(--main-color); font-size: 28px; font-weight: bold; text-transform: uppercase; text-decoration: none; }
+        
+        /* منطقة العرض الرئيسية */
+        .hero { height: 60vh; background: linear-gradient(to right, rgba(0,0,0,0.8), transparent), url('https://images.alphacoders.com/589/589553.jpg'); background-size: cover; background-position: center; display: flex; align-items: center; padding: 0 5%; }
+        .hero-content h2 { font-size: 45px; margin-bottom: 10px; }
+        
+        /* شبكة الأفلام */
+        .container { padding: 30px 5%; }
+        .section-title { font-size: 22px; margin-bottom: 20px; border-right: 4px solid var(--main-color); padding-right: 15px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 20px; }
+        
+        .movie-card { background: var(--card-bg); border-radius: 10px; overflow: hidden; transition: transform 0.3s; cursor: pointer; position: relative; }
+        .movie-card:hover { transform: scale(1.05); }
+        .movie-card img { width: 100%; height: 240px; object-fit: cover; }
+        .movie-info { padding: 10px; text-align: center; }
+        .movie-info h3 { font-size: 14px; margin: 5px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .rating { color: #ffc107; font-size: 12px; }
+
+        /* نافذة الفيديو */
+        #videoPlayer { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 1000; justify-content: center; align-items: center; }
+        .player-container { width: 90%; max-width: 800px; position: relative; }
+        iframe { width: 100%; aspect-ratio: 16/9; border: none; border-radius: 10px; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
+        .close-btn { position: absolute; top: -40px; left: 0; color: white; background: var(--main-color); border: none; padding: 5px 15px; cursor: pointer; border-radius: 5px; }
+
+        @media (max-width: 600px) { .hero-content h2 { font-size: 28px; } .grid { grid-template-columns: repeat(2, 1fr); } }
     </style>
 </head>
 <body>
+
     <header>
-        <h1>Cinma Online</h1>
-        <p>مشاهدة ممتعة يا إسلام</p>
+        <a href="#" class="logo">Cinma Online</a>
     </header>
 
-    <div class="grid">
-        <div class="card" onclick="play('https://www.youtube.com/embed/zSWdZVtXT7E')">
-            <img src="https://m.media-amazon.com/images/M/MV5BZjdkOTU3MDktN2IxOS00OGEyLWFmMjktY2FiMmZkNWIyODZiXkEyXkFqcGdeQXVyMTMxODk2OTU@._V1_.jpg">
-            <div class="title">Interstellar (2014)</div>
+    <section class="hero">
+        <div class="hero-content">
+            <h2>شاهد أحدث الأفلام مجاناً</h2>
+            <p>أفضل جودة وأسرع سيرفرات للمشاهدة المباشرة</p>
         </div>
-        <div class="card" onclick="play('https://www.youtube.com/embed/YoHD9XEInc0')">
-            <img src="https://m.media-amazon.com/images/M/MV5BMjAxMzY3NjcxNF5BMl5BanBnXkFtZTcwNTI5OTM0Mw@@._V1_.jpg">
-            <div class="title">Inception (2010)</div>
-        </div>
+    </section>
+
+    <div class="container">
+        <h2 class="section-title">أفلام مختارة لك</h2>
+        <div class="grid">
+            
+            <div class="movie-card" onclick="openPlayer('https://www.youtube.com/embed/zSWdZVtXT7E')">
+                <img src="https://m.media-amazon.com/images/M/MV5BZjdkOTU3MDktN2IxOS00OGEyLWFmMjktY2FiMmZkNWIyODZiXkEyXkFqcGdeQXVyMTMxODk2OTU@._V1_.jpg" alt="Interstellar">
+                <div class="movie-info">
+                    <h3>Interstellar</h3>
+                    <div class="rating">⭐ 8.7</div>
+                </div>
+            </div>
+
+            <div class="movie-card" onclick="openPlayer('https://www.youtube.com/embed/YoHD9XEInc0')">
+                <img src="https://m.media-amazon.com/images/M/MV5BMjAxMzY3NjcxNF5BMl5BanBnXkFtZTcwNTI5OTM0Mw@@._V1_.jpg" alt="Inception">
+                <div class="movie-info">
+                    <h3>Inception</h3>
+                    <div class="rating">⭐ 8.8</div>
+                </div>
+            </div>
+
+            </div>
     </div>
 
-    <div id="viewer">
-        <button class="close" onclick="closeVideo()">إغلاق X</button>
-        <iframe id="screen" src=""></iframe>
+    <div id="videoPlayer">
+        <div class="player-container">
+            <button class="close-btn" onclick="closePlayer()">إغلاق X</button>
+            <iframe id="mainFrame" src="" allowfullscreen></iframe>
+        </div>
     </div>
 
     <script>
-        function play(url) { document.getElementById('viewer').style.display = 'flex'; document.getElementById('screen').src = url; }
-        function closeVideo() { document.getElementById('viewer').style.display = 'none'; document.getElementById('screen').src = ''; }
+        function openPlayer(url) {
+            document.getElementById('mainFrame').src = url;
+            document.getElementById('videoPlayer').style.display = 'flex';
+        }
+        function closePlayer() {
+            document.getElementById('videoPlayer').style.display = 'none';
+            document.getElementById('mainFrame').src = '';
+        }
     </script>
 </body>
 </html>
