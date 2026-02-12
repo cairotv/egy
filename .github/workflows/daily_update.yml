@@ -1,0 +1,35 @@
+name: Daily Movie Update
+
+on:
+  schedule:
+    # الكود ده معناه: اشتغل كل 6 ساعات (الساعة 6، 12، 18، 00)
+    - cron: '0 */6 * * *'
+  # ده عشان يظهرلك زرار "تشغيل الآن" لو حبيت تشغله يدوي
+  workflow_dispatch:
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    steps:
+      # 1. نزل الكود بتاعنا
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      # 2. جهز بيئة بايثون
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.9'
+
+      # 3. نزل المكتبات المطلوبة (requests, supabase)
+      - name: Install libraries
+        run: |
+          pip install -r requirements.txt
+
+      # 4. شغل البوت واديله المفاتيح من الخزنة
+      - name: Run Movie Bot
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+        run: python bot.py
