@@ -44,7 +44,8 @@
     <div class="container">
         <h2 class="section-title">أحدث الإضافات العالمية</h2>
         <div id="moviesGrid" class="grid">
-            </div>
+            <p style="color: #777;">جاري تحميل الأفلام...</p>
+        </div>
     </div>
 
     <div id="below_player" class="ad-space">مساحة إعلانية (Bottom Banner)</div>
@@ -57,14 +58,27 @@
     </div>
 
     <script>
-        // بيانات الربط الخاصة بك
+        // تصحيح طريقة استدعاء المكتبة
+        const { createClient } = supabase;
+
         const supabaseUrl = 'https://wzeqtnkzytmlmeujaxnl.supabase.co';
         const supabaseKey = 'Sb_publishable_l01UHEoUPjcHbAxha7LZSA_Cegog4KN';
-        const supabase = supabasejs.createClient(supabaseUrl, supabaseKey);
+        const _supabase = createClient(supabaseUrl, supabaseKey);
 
         async function loadMovies() {
-            const { data: movies, error } = await supabase.from('movies').select('*');
-            if (error) { console.error(error); return; }
+            // جلب البيانات من جدول movies
+            const { data: movies, error } = await _supabase.from('movies').select('*');
+            
+            if (error) { 
+                console.error("Error loading movies:", error);
+                document.getElementById('moviesGrid').innerHTML = '<p>حدث خطأ في تحميل الأفلام. تأكد من إعدادات قاعدة البيانات.</p>';
+                return; 
+            }
+
+            if (!movies || movies.length === 0) {
+                document.getElementById('moviesGrid').innerHTML = '<p>لا توجد أفلام حالياً. تأكد من إضافة بيانات في Supabase.</p>';
+                return;
+            }
 
             const grid = document.getElementById('moviesGrid');
             grid.innerHTML = movies.map(movie => `
@@ -82,11 +96,13 @@
         }
 
         async function loadAds() {
-            const { data: ads } = await supabase.from('ad_placements').select('*');
-            ads.forEach(ad => {
-                const element = document.getElementById(ad.position_name);
-                if (element && ad.is_active) element.innerHTML = ad.ad_code;
-            });
+            const { data: ads } = await _supabase.from('ad_placements').select('*');
+            if (ads) {
+                ads.forEach(ad => {
+                    const element = document.getElementById(ad.position_name);
+                    if (element && ad.is_active) element.innerHTML = ad.ad_code;
+                });
+            }
         }
 
         function openPlayer(url) {
@@ -99,6 +115,7 @@
             document.getElementById('videoIframe').src = '';
         }
 
+        // تشغيل الدوال عند فتح الموقع
         loadMovies();
         loadAds();
     </script>
