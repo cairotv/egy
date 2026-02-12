@@ -3,268 +3,229 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CINEMA ONLINE | المنصة العالمية</title>
-    
-    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <title>CINEMA ONLINE | مشاهدة فورية</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-
+    
     <script>
-        tailwind.config = {
-            theme: { 
-                extend: { 
-                    colors: { brand: '#E50914', dark: '#141414' },
-                    fontFamily: { sans: ['Cairo', 'sans-serif'] }
-                } 
-            }
-        }
+        tailwind.config = { theme: { extend: { colors: { brand: '#E50914', dark: '#141414' }, fontFamily: { sans: ['Cairo', 'sans-serif'] } } } }
     </script>
     <style>
         body { background-color: #141414; color: white; overflow-x: hidden; }
-        [v-cloak] { display: none; }
-        
-        /* تصميم شاشة التحميل */
-        #loading-screen {
-            position: fixed; inset: 0; background: #141414; z-index: 9999;
-            display: flex; flex-direction: column; align-items: center; justify-content: center;
-            transition: opacity 0.5s ease;
-        }
-        .spinner { width: 50px; height: 50px; border: 5px solid rgba(255,255,255,0.1); border-top-color: #E50914; border-radius: 50%; animation: spin 1s linear infinite; }
+        /* تصميم شاشة التحميل البسيطة */
+        #loader { position: fixed; inset: 0; background: #141414; z-index: 9999; display: flex; justify-content: center; align-items: center; transition: opacity 0.5s; }
+        .spinner { width: 40px; height: 40px; border: 4px solid #333; border-top-color: #E50914; border-radius: 50%; animation: spin 1s linear infinite; }
         @keyframes spin { 100% { transform: rotate(360deg); } }
-        
         /* إخفاء السكرول */
         .hide-scroll::-webkit-scrollbar { display: none; }
-        
-        /* تكبير البوسترات */
-        .poster-card:hover { transform: scale(1.05); z-index: 10; transition: transform 0.3s; }
     </style>
 </head>
 <body>
 
-    <div id="loading-screen">
-        <div class="spinner mb-4"></div>
-        <p class="text-gray-400 font-bold tracking-widest animate-pulse">جاري الاتصال بالسيرفر...</p>
-        <p id="error-msg" class="text-red-500 text-sm mt-4 hidden">فشل الاتصال، يرجى تحديث الصفحة</p>
+    <div id="loader">
+        <div class="text-center">
+            <div class="spinner mx-auto mb-4"></div>
+            <p class="text-gray-500 text-sm">لحظة واحدة...</p>
+        </div>
     </div>
 
-    <div id="app" v-cloak class="min-h-screen flex flex-col opacity-0 transition-opacity duration-1000" :class="{'opacity-100': mounted}">
+    <div id="main-content" style="opacity: 0; transition: opacity 1s;">
         
-        <nav class="fixed w-full z-50 bg-gradient-to-b from-black/90 to-transparent transition-all duration-300" :class="{'bg-black shadow-xl': scrolled}">
-            <div class="container mx-auto px-4 h-20 flex items-center justify-between">
-                <div class="flex items-center gap-2 cursor-pointer" @click="goHome">
-                    <i class="fas fa-play-circle text-4xl text-brand"></i>
-                    <h1 class="text-2xl font-black tracking-tighter">CINEMA<span class="text-gray-400 text-sm block tracking-[0.4em]">ONLINE</span></h1>
+        <nav class="fixed w-full z-50 bg-black/90 backdrop-blur border-b border-white/10">
+            <div class="container mx-auto px-4 h-16 flex items-center justify-between">
+                <div class="flex items-center gap-2 cursor-pointer" onclick="location.reload()">
+                    <i class="fas fa-play-circle text-3xl text-brand"></i>
+                    <h1 class="text-xl font-black">CINEMA<span class="text-gray-400 text-xs tracking-widest">ONLINE</span></h1>
                 </div>
-                
-                <div class="hidden md:flex gap-6 font-bold text-gray-300">
-                    <button @click="filter='all'" :class="filter=='all'?'text-white text-brand':''">الرئيسية</button>
-                    <button @click="filter='movie'" :class="filter=='movie'?'text-white text-brand':''">أفلام</button>
-                    <button @click="filter='series'" :class="filter=='series'?'text-white text-brand':''">مسلسلات</button>
-                </div>
-
-                <div class="relative">
-                    <input v-model="search" type="text" placeholder="بحث..." class="bg-white/10 border border-transparent focus:border-brand rounded-full px-4 py-2 w-32 focus:w-64 transition-all outline-none">
+                <div class="hidden md:flex gap-6 font-bold text-sm text-gray-300">
+                    <button onclick="renderGrid(allData)" class="hover:text-brand">الكل</button>
+                    <button onclick="filterType('movie')" class="hover:text-brand">أفلام</button>
+                    <button onclick="filterType('series')" class="hover:text-brand">مسلسلات</button>
                 </div>
             </div>
         </nav>
 
-        <main class="flex-grow pt-20">
-            
-            <div v-if="view === 'home'">
-                <div v-if="filteredContent.length === 0" class="flex flex-col items-center justify-center h-[60vh] text-center px-4">
-                    <i class="fas fa-cloud-download-alt text-6xl text-gray-700 mb-4"></i>
-                    <h2 class="text-2xl font-bold mb-2">السينما جاهزة، لكن أين الأفلام؟</h2>
-                    <p class="text-gray-400 mb-6">قاعدة البيانات فارغة حالياً. تأكد من تشغيل "البوت" من GitHub Actions لضخ الأفلام.</p>
-                    <a href="https://github.com/cairotv/egy/actions" target="_blank" class="bg-brand text-white px-6 py-2 rounded font-bold hover:bg-red-700">تشغيل البوت الآن</a>
-                </div>
-
-                <div v-if="featured" class="relative h-[80vh] w-full mb-12 group overflow-hidden">
-                    <div class="absolute inset-0 bg-cover bg-center transition-transform duration-[10s] group-hover:scale-110" :style="`background-image: url('${featured.backdrop_path}')`"></div>
-                    <div class="absolute inset-0 bg-gradient-to-t from-[#141414] via-[#141414]/20 to-transparent"></div>
-                    <div class="absolute bottom-0 w-full p-8 md:p-16 z-10">
-                        <span class="bg-brand text-white text-[10px] font-bold px-3 py-1 rounded mb-4 inline-block">الأكثر شهرة</span>
-                        <h1 class="text-5xl md:text-7xl font-black mb-4 drop-shadow-2xl max-w-4xl">{{ featured.title }}</h1>
-                        <p class="text-gray-200 text-lg mb-8 line-clamp-3 max-w-2xl drop-shadow-md">{{ featured.overview }}</p>
-                        <button @click="openDetails(featured)" class="bg-white text-black px-10 py-3 rounded font-bold hover:bg-gray-200 transition flex items-center gap-3">
-                            <i class="fas fa-play"></i> مشاهدة الآن
-                        </button>
-                    </div>
-                </div>
-
-                <div v-if="filteredContent.length > 0" class="container mx-auto px-4 pb-20">
-                    <h2 class="text-2xl font-bold mb-6 flex items-center gap-2"><span class="w-1 h-6 bg-brand rounded"></span> أحدث الإضافات</h2>
-                    <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                        <div v-for="item in filteredContent" :key="item.id" @click="openDetails(item)" class="poster-card relative rounded-lg overflow-hidden aspect-[2/3] cursor-pointer bg-gray-800">
-                            <img :src="item.poster_path" class="w-full h-full object-cover" loading="lazy">
-                            <div class="absolute top-2 left-2 bg-brand text-white text-[10px] font-bold px-2 py-1 rounded shadow">
-                                {{ item.type === 'movie' ? 'FILM' : 'TV' }}
-                            </div>
-                            <div class="absolute inset-0 bg-black/60 opacity-0 hover:opacity-100 transition flex flex-col justify-end p-4">
-                                <h3 class="font-bold text-sm">{{ item.title }}</h3>
-                                <span class="text-xs text-brand">{{ new Date(item.added_at).getFullYear() }}</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+        <main class="pt-20 px-4 container mx-auto min-h-screen">
+            <div id="empty-msg" class="hidden text-center mt-20">
+                <i class="fas fa-film text-6xl text-gray-800 mb-4"></i>
+                <p class="text-gray-500">لا توجد أفلام حالياً. شغل البوت من GitHub.</p>
             </div>
 
-            <div v-if="view === 'details' && selected" class="min-h-screen bg-[#141414]">
-                <div class="relative h-[60vh]">
-                    <div class="absolute inset-0 bg-cover bg-center" :style="`background-image: url('${selected.backdrop_path}')`"></div>
-                    <div class="absolute inset-0 bg-gradient-to-t from-[#141414] to-transparent"></div>
-                    <button @click="view='home'" class="absolute top-6 left-6 z-50 bg-black/50 w-10 h-10 rounded-full text-white hover:bg-brand flex items-center justify-center backdrop-blur"><i class="fas fa-arrow-left"></i></button>
-                    
-                    <div class="absolute bottom-0 w-full container mx-auto px-4 pb-8 flex items-end gap-8">
-                        <img :src="selected.poster_path" class="w-48 rounded shadow-2xl border-2 border-gray-700 hidden md:block">
-                        <div class="mb-4">
-                            <h1 class="text-4xl font-black mb-2">{{ selected.title }}</h1>
-                            <div class="flex gap-4 mb-6">
-                                <button v-if="selected.type === 'movie'" @click="playNow" class="bg-brand text-white px-8 py-3 rounded font-bold hover:bg-red-700 shadow-lg shadow-red-900/50">
-                                    <i class="fas fa-play"></i> تشغيل الفيلم
-                                </button>
-                                <button v-else class="bg-brand text-white px-8 py-3 rounded font-bold hover:bg-red-700">
-                                    <i class="fas fa-list"></i> استعراض الحلقات
-                                </button>
-                            </div>
-                        </div>
-                    </div>
+            <div id="grid" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
                 </div>
-
-                <div v-if="isPlaying" id="player-area" class="container mx-auto px-4 py-10 animate-fade-in">
-                    <div class="bg-black aspect-video rounded-xl overflow-hidden shadow-2xl border border-gray-800 relative">
-                        <iframe v-if="serverUrl" :src="serverUrl" class="w-full h-full" frameborder="0" allowfullscreen></iframe>
-                        <div v-else class="absolute inset-0 flex flex-col items-center justify-center text-gray-500">
-                            <i class="fas fa-cog fa-spin text-4xl mb-4 text-brand"></i>
-                            <p>جاري البحث عن سيرفر...</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div v-if="selected.type === 'series'" class="container mx-auto px-4 pb-20">
-                    <div class="flex gap-2 overflow-x-auto pb-4 hide-scroll mb-4">
-                        <button v-for="s in seasons" :key="s.id" @click="loadEp(s)" :class="currentSeason?.id===s.id?'bg-white text-black':'bg-gray-800 text-gray-400'" class="px-6 py-2 rounded-full font-bold whitespace-nowrap transition">
-                            {{ s.name }}
-                        </button>
-                    </div>
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div v-for="ep in episodes" :key="ep.id" @click="playEp(ep)" class="bg-gray-800 hover:bg-gray-700 p-3 rounded cursor-pointer flex gap-4 transition group">
-                            <div class="w-32 aspect-video bg-black rounded overflow-hidden relative">
-                                <img :src="ep.still_path" class="w-full h-full object-cover opacity-70 group-hover:opacity-100">
-                                <i class="fas fa-play absolute inset-0 m-auto text-white opacity-0 group-hover:opacity-100"></i>
-                            </div>
-                            <div>
-                                <h4 class="font-bold text-sm group-hover:text-brand">{{ ep.name }}</h4>
-                                <span class="text-xs text-gray-500">حلقة {{ ep.episode_number }}</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
         </main>
+
+        <div id="modal" class="fixed inset-0 z-[60] bg-black/95 hidden overflow-y-auto">
+            <button onclick="closeModal()" class="fixed top-4 left-4 z-[70] bg-gray-800 w-10 h-10 rounded-full text-white hover:bg-brand"><i class="fas fa-times"></i></button>
+            <div id="modal-content" class="min-h-screen"></div>
+        </div>
     </div>
 
     <script>
-        // نظام الأمان: إخفاء التحميل إجبارياً بعد 4 ثواني
-        setTimeout(() => {
-            const loader = document.getElementById('loading-screen');
-            if(loader) loader.style.opacity = '0';
-            setTimeout(() => { if(loader) loader.style.display = 'none'; }, 500);
-        }, 4000);
-
-        const { createApp, ref, computed, onMounted } = Vue;
+        // إعدادات الاتصال المباشر (بدون Vue)
         const SUPABASE_URL = 'https://wzeqtnkzytmlmeujaxnl.supabase.co';
         const SUPABASE_KEY = 'EyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind6ZXF0bmt6eXRtbG1ldWpheG5sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA4NjMwNDEsImV4cCI6MjA4NjQzOTA0MX0.xwu-ZpaX77nxGHH4HlRjQ0Cxy0KrbdT6xBRAvZw70uU';
         const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        
+        let allData = [];
 
-        createApp({
-            setup() {
-                const mounted = ref(false);
-                const view = ref('home');
-                const search = ref('');
-                const filter = ref('all');
-                const scrolled = ref(false);
+        // 1. التشغيل الفوري
+        async function init() {
+            // كسر شاشة التحميل بعد 3 ثواني كحد أقصى (نظام أمان)
+            setTimeout(() => {
+                document.getElementById('loader').style.opacity = '0';
+                setTimeout(() => { 
+                    document.getElementById('loader').style.display = 'none'; 
+                    document.getElementById('main-content').style.opacity = '1';
+                }, 500);
+            }, 2000);
+
+            try {
+                // جلب البيانات
+                const { data: m } = await supabase.from('movies').select('*').limit(40).order('added_at', {ascending: false});
+                const { data: s } = await supabase.from('series').select('*').limit(40).order('added_at', {ascending: false});
                 
-                const movies = ref([]);
-                const series = ref([]);
-                const selected = ref(null);
-                const isPlaying = ref(false);
-                const serverUrl = ref('');
-                const seasons = ref([]);
-                const currentSeason = ref(null);
-                const episodes = ref([]);
+                allData = [
+                    ...(m || []).map(x => ({...x, type: 'movie'})), 
+                    ...(s || []).map(x => ({...x, type: 'series'}))
+                ].sort((a,b) => new Date(b.added_at) - new Date(a.added_at));
 
-                const init = async () => {
-                    try {
-                        const { data: m } = await supabase.from('movies').select('*').limit(50).order('added_at', {ascending: false});
-                        if (m) movies.value = m.map(x => ({...x, type: 'movie'}));
-
-                        const { data: s } = await supabase.from('series').select('*').limit(50).order('added_at', {ascending: false});
-                        if (s) series.value = s.map(x => ({...x, type: 'series'}));
-                    } catch(e) { console.error(e); }
-                    
-                    // إخفاء التحميل بنعومة
-                    mounted.value = true;
-                    document.getElementById('loading-screen').style.display = 'none';
-                };
-
-                const filteredContent = computed(() => {
-                    let all = [...movies.value, ...series.value].sort((a,b) => new Date(b.added_at) - new Date(a.added_at));
-                    if(search.value) return all.filter(i => i.title.toLowerCase().includes(search.value.toLowerCase()));
-                    if(filter.value === 'movie') return all.filter(i => i.type === 'movie');
-                    if(filter.value === 'series') return all.filter(i => i.type === 'series');
-                    return all;
-                });
-
-                const featured = computed(() => filteredContent.value[0]);
-
-                const openDetails = async (item) => {
-                    selected.value = item;
-                    view.value = 'details';
-                    window.scrollTo(0,0);
-                    isPlaying.value = false;
-                    seasons.value = [];
-                    episodes.value = [];
-
-                    if(item.type === 'series') {
-                        const { data } = await supabase.from('seasons').select('*').eq('series_id', item.id).order('season_number', {ascending: true});
-                        if(data) { seasons.value = data; if(data[0]) loadEp(data[0]); }
-                    }
-                };
-
-                const playNow = async () => {
-                    isPlaying.value = true;
-                    setTimeout(() => document.getElementById('player-area').scrollIntoView({behavior:'smooth'}), 100);
-                    const { data } = await supabase.from('servers').select('*').eq('movie_id', selected.value.id).limit(1).single();
-                    serverUrl.value = data ? data.embed_url : '';
-                };
-
-                const loadEp = async (season) => {
-                    currentSeason.value = season;
-                    const { data } = await supabase.from('episodes').select('*').eq('season_id', season.id).order('episode_number', {ascending: true});
-                    if(data) episodes.value = data;
-                };
-
-                const playEp = async (ep) => {
-                    isPlaying.value = true;
-                    window.scrollTo(0,0);
-                    const { data } = await supabase.from('servers').select('*').eq('episode_id', ep.id).limit(1).single();
-                    serverUrl.value = data ? data.embed_url : '';
-                };
-
-                const goHome = () => { view.value = 'home'; search.value = ''; filter.value = 'all'; window.scrollTo(0,0); };
-
-                onMounted(() => {
-                    init();
-                    window.addEventListener('scroll', () => scrolled.value = window.scrollY > 50);
-                });
-
-                return { mounted, view, search, filter, scrolled, filteredContent, featured, selected, openDetails, playNow, isPlaying, serverUrl, seasons, currentSeason, episodes, loadEp, playEp, goHome };
+                renderGrid(allData);
+            } catch (e) {
+                console.error(e);
+                document.getElementById('grid').innerHTML = '<p class="text-red-500 text-center col-span-full">حدث خطأ في الاتصال</p>';
             }
-        }).mount('#app');
+        }
+
+        // 2. عرض الشبكة
+        function renderGrid(items) {
+            const grid = document.getElementById('grid');
+            const msg = document.getElementById('empty-msg');
+            
+            if (items.length === 0) {
+                msg.classList.remove('hidden');
+                grid.innerHTML = '';
+                return;
+            }
+            
+            msg.classList.add('hidden');
+            grid.innerHTML = items.map(item => `
+                <div onclick="openModal('${item.id}', '${item.type}')" class="group relative cursor-pointer rounded-lg overflow-hidden bg-gray-800 aspect-[2/3] hover:scale-105 transition duration-300">
+                    <img src="${item.poster_path}" class="w-full h-full object-cover opacity-90 group-hover:opacity-100" loading="lazy">
+                    <div class="absolute top-2 right-2 bg-brand text-white text-[10px] font-bold px-2 py-1 rounded shadow">
+                        ★ ${item.vote_average || '0.0'}
+                    </div>
+                    <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition flex flex-col justify-end p-3">
+                        <h3 class="font-bold text-sm text-white">${item.title}</h3>
+                        <span class="text-xs text-brand font-bold">${item.type === 'movie' ? 'فيلم' : 'مسلسل'}</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function filterType(type) {
+            const filtered = allData.filter(x => x.type === type);
+            renderGrid(filtered);
+        }
+
+        // 3. فتح التفاصيل
+        async function openModal(id, type) {
+            const modal = document.getElementById('modal');
+            const content = document.getElementById('modal-content');
+            modal.classList.remove('hidden');
+            
+            // البحث عن العنصر في الذاكرة (أسرع من النت)
+            const item = allData.find(x => x.id === id);
+            
+            // تصميم المودال
+            content.innerHTML = `
+                <div class="relative h-[60vh]">
+                    <div class="absolute inset-0 bg-cover bg-center" style="background-image: url('${item.backdrop_path}')"></div>
+                    <div class="absolute inset-0 bg-gradient-to-t from-black to-transparent"></div>
+                    <div class="absolute bottom-0 w-full p-6 md:p-10">
+                        <h1 class="text-3xl md:text-5xl font-black mb-4">${item.title}</h1>
+                        <p class="text-gray-300 max-w-2xl text-lg mb-6 line-clamp-3">${item.overview || 'لا يوجد وصف'}</p>
+                        <div id="action-area">
+                            <button onclick="playMedia('${item.id}', '${type}')" class="bg-brand text-white px-8 py-3 rounded font-bold hover:bg-red-700 transition flex items-center gap-2">
+                                <i class="fas fa-play"></i> ${type === 'movie' ? 'مشاهدة الفيلم' : 'عرض الحلقات'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div id="player-container" class="container mx-auto px-4 pb-20 mt-10 hidden"></div>
+            `;
+        }
+
+        async function playMedia(id, type) {
+            const container = document.getElementById('player-container');
+            container.classList.remove('hidden');
+            container.innerHTML = '<div class="text-center text-gray-500"><i class="fas fa-circle-notch fa-spin text-3xl"></i><p>جاري جلب السيرفر...</p></div>';
+            
+            // السكرول للمشغل
+            container.scrollIntoView({behavior: 'smooth'});
+
+            if (type === 'movie') {
+                const { data } = await supabase.from('servers').select('*').eq('movie_id', id).limit(1).single();
+                if (data) {
+                    container.innerHTML = `<div class="bg-black aspect-video rounded-xl overflow-hidden shadow-2xl"><iframe src="${data.embed_url}" class="w-full h-full" frameborder="0" allowfullscreen></iframe></div>`;
+                } else {
+                    container.innerHTML = '<p class="text-center text-red-500">عذراً، السيرفر غير متاح حالياً.</p>';
+                }
+            } else {
+                // لو مسلسل، هات المواسم
+                const { data: seasons } = await supabase.from('seasons').select('*').eq('series_id', id).order('season_number', {ascending: true});
+                if (seasons && seasons.length > 0) {
+                    let seasonsHTML = seasons.map(s => `<button onclick="loadEpisodes('${s.id}')" class="bg-gray-800 px-4 py-2 rounded-full hover:bg-brand transition">${s.name}</button>`).join('');
+                    container.innerHTML = `
+                        <h3 class="text-xl font-bold mb-4">اختر الموسم:</h3>
+                        <div class="flex gap-2 overflow-x-auto pb-4 mb-4">${seasonsHTML}</div>
+                        <div id="episodes-list" class="grid grid-cols-1 md:grid-cols-3 gap-4"></div>
+                    `;
+                    // حمل حلقات أول موسم
+                    loadEpisodes(seasons[0].id);
+                } else {
+                    container.innerHTML = '<p class="text-center text-gray-500">لا توجد مواسم متاحة.</p>';
+                }
+            }
+        }
+
+        async function loadEpisodes(seasonId) {
+            const list = document.getElementById('episodes-list');
+            list.innerHTML = '<p class="col-span-full text-center">جاري التحميل...</p>';
+            
+            const { data: eps } = await supabase.from('episodes').select('*').eq('season_id', seasonId).order('episode_number', {ascending: true});
+            
+            if (eps && eps.length > 0) {
+                list.innerHTML = eps.map(ep => `
+                    <div onclick="playEp('${ep.id}')" class="bg-gray-800 p-3 rounded hover:bg-gray-700 cursor-pointer flex gap-4 transition group">
+                        <img src="${ep.still_path || 'https://via.placeholder.com/150'}" class="w-24 object-cover rounded">
+                        <div>
+                            <h4 class="font-bold text-sm group-hover:text-brand">حلقة ${ep.episode_number}</h4>
+                            <span class="text-xs text-gray-500 line-clamp-1">${ep.name}</span>
+                        </div>
+                    </div>
+                `).join('');
+            } else {
+                list.innerHTML = '<p class="col-span-full text-center">لا توجد حلقات.</p>';
+            }
+        }
+
+        async function playEp(epId) {
+            // تشغيل الحلقة في نافذة جديدة أو نفس المكان (للتبسيط هنا)
+            const { data } = await supabase.from('servers').select('*').eq('episode_id', epId).limit(1).single();
+            if (data) {
+                window.open(data.embed_url, '_blank'); // فتح في تبويب جديد كحل سريع
+            } else {
+                alert('السيرفر غير متاح');
+            }
+        }
+
+        function closeModal() { document.getElementById('modal').classList.add('hidden'); }
+
+        // بدء التشغيل
+        init();
     </script>
 </body>
 </html>
