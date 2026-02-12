@@ -1,187 +1,334 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl" class="dark">
+<html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CINEMA MAX | مشاهدة ممتعة</title>
+    <title>CINEMA ONLINE | السينما في بيتك</title>
+    
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
     <script>
         tailwind.config = {
-            darkMode: 'class',
-            theme: { extend: { colors: { brand: '#E50914', dark: '#141414' } } }
+            theme: { 
+                extend: { 
+                    colors: { 
+                        brand: '#E50914', // أحمر نتفليكس
+                        dark: '#141414',
+                        glass: 'rgba(20, 20, 20, 0.90)'
+                    },
+                    fontFamily: { sans: ['Cairo', 'sans-serif'] }
+                } 
+            }
         }
     </script>
     <style>
-        body { background-color: #141414; color: white; }
-        .loader { border-top-color: #E50914; -webkit-animation: spinner 1.5s linear infinite; animation: spinner 1.5s linear infinite; }
-        @keyframes spinner { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        body { background-color: #141414; color: white; overflow-x: hidden; }
+        [v-cloak] { display: none; } /* السحر: بيخفي الأكواد البايظة لحد ما الموقع يحمل */
+        
+        /* شريط التمرير المخفي */
+        .hide-scroll::-webkit-scrollbar { display: none; }
+        .hide-scroll { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        /* تأثيرات الهوفر */
+        .poster-card { transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94); }
+        .poster-card:hover { transform: scale(1.05); z-index: 50; }
+        
+        /* اللوجو */
+        .logo-text { text-shadow: 0px 0px 20px rgba(229, 9, 20, 0.8); }
+        
+        /* التحميل */
+        .loader { width: 48px; height: 48px; border: 5px solid #FFF; border-bottom-color: #E50914; border-radius: 50%; animation: rotation 1s linear infinite; }
+        @keyframes rotation { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
 
-<div id="app" class="min-h-screen flex flex-col font-sans">
-    <nav class="fixed w-full z-50 bg-black/90 backdrop-blur border-b border-gray-800">
-        <div class="container mx-auto px-4 h-16 flex items-center justify-between">
-            <h1 class="text-3xl font-black text-brand tracking-tighter cursor-pointer" @click="view='home'">CINEMA<span class="text-white">MAX</span></h1>
-            <div class="flex gap-4">
-                <button @click="view='home'; filter='all'" class="text-gray-300 hover:text-white font-bold">الرئيسية</button>
-                <button @click="view='favorites'" class="text-gray-300 hover:text-white font-bold">مفضلتي</button>
+<div id="app" v-cloak class="min-h-screen flex flex-col">
+    
+    <nav class="fixed w-full z-50 transition-all duration-500" :class="scrolled ? 'bg-black shadow-2xl' : 'bg-gradient-to-b from-black/80 to-transparent'">
+        <div class="container mx-auto px-4 h-20 flex items-center justify-between">
+            <div class="flex items-center gap-1 cursor-pointer" @click="goHome">
+                <i class="fas fa-play-circle text-4xl text-brand"></i>
+                <div class="flex flex-col leading-none mr-2">
+                    <span class="text-2xl font-black tracking-tighter logo-text">CINEMA</span>
+                    <span class="text-[10px] tracking-[0.3em] font-bold text-gray-400">ONLINE</span>
+                </div>
+            </div>
+
+            <div class="hidden md:flex gap-8 font-bold text-gray-300">
+                <a href="#" @click.prevent="filter='all'" :class="filter=='all'?'text-white border-b-2 border-brand':''">الرئيسية</a>
+                <a href="#" @click.prevent="filter='movie'" :class="filter=='movie'?'text-white border-b-2 border-brand':''">أفلام</a>
+                <a href="#" @click.prevent="filter='series'" :class="filter=='series'?'text-white border-b-2 border-brand':''">مسلسلات</a>
+            </div>
+
+            <div class="relative">
+                <input v-model="search" type="text" placeholder="ابحث..." 
+                       class="bg-black/50 border border-gray-600 rounded-full px-4 py-2 pl-10 focus:border-brand focus:outline-none focus:bg-black w-32 focus:w-64 transition-all duration-300">
+                <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
             </div>
         </div>
     </nav>
 
-    <main class="flex-grow pt-20 px-4 container mx-auto">
-        <div v-if="loading" class="flex justify-center items-center h-[80vh]">
-            <div class="loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-16 w-16"></div>
+    <main class="flex-grow">
+        
+        <div v-if="loading" class="fixed inset-0 bg-[#141414] z-[100] flex flex-col items-center justify-center">
+            <div class="loader mb-4"></div>
+            <p class="animate-pulse font-bold tracking-widest text-sm">جاري تجهيز السينما...</p>
         </div>
 
-        <div v-else-if="view==='home' || view==='favorites'" class="animate-fade-in">
-            <div v-if="filteredContent.length === 0" class="text-center mt-20 text-gray-500 text-xl">
-                لا توجد أفلام حالياً. تأكد من تشغيل البوت!
+        <div v-if="view === 'home'">
+            
+            <div v-if="featured" class="relative h-[85vh] w-full mb-8 group">
+                <div class="absolute inset-0 bg-cover bg-center transition-transform duration-[10s] group-hover:scale-105" :style="`background-image: url('${featured.backdrop_path}')`"></div>
+                <div class="absolute inset-0 bg-gradient-to-t from-[#141414] via-[#141414]/40 to-transparent"></div>
+                <div class="absolute inset-0 bg-gradient-to-r from-[#141414] via-[#141414]/60 to-transparent"></div>
+                
+                <div class="absolute bottom-0 right-0 w-full p-8 md:p-16 z-10 max-w-3xl">
+                    <span class="bg-brand text-white text-[10px] font-bold px-2 py-1 rounded mb-4 inline-block">الأكثر مشاهدة 🔥</span>
+                    <h1 class="text-5xl md:text-7xl font-black mb-4 leading-tight drop-shadow-2xl">{{ featured.title }}</h1>
+                    <p class="text-gray-200 text-lg mb-8 line-clamp-3 drop-shadow-md">{{ featured.overview }}</p>
+                    
+                    <div class="flex gap-4">
+                        <button @click="openDetails(featured)" class="bg-white text-black px-8 py-3 rounded-md font-bold hover:bg-gray-200 transition flex items-center gap-2 transform hover:scale-105">
+                            <i class="fas fa-play text-xl"></i> مشاهدة
+                        </button>
+                        <button class="bg-gray-600/70 text-white px-8 py-3 rounded-md font-bold hover:bg-gray-600 transition backdrop-blur border border-gray-500">
+                            <i class="fas fa-info-circle"></i> تفاصيل
+                        </button>
+                    </div>
+                </div>
             </div>
-            <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                <div v-for="item in filteredContent" :key="item.id" @click="openDetails(item)" class="group relative cursor-pointer rounded-lg overflow-hidden transition hover:scale-105 duration-300">
-                    <img :src="item.poster_path" class="w-full h-full object-cover aspect-[2/3]" loading="lazy">
-                    <div class="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-0 group-hover:opacity-100 transition">
-                        <div class="absolute bottom-0 p-4">
-                            <h3 class="font-bold text-sm">{{ item.title }}</h3>
-                            <span class="text-xs text-brand font-bold">{{ item.type === 'movie' ? 'فيلم' : 'مسلسل' }}</span>
+
+            <div class="container mx-auto px-4 pb-20 -mt-20 relative z-20">
+                <h2 class="text-2xl font-bold mb-4 flex items-center gap-2 text-white">
+                    <span class="w-1 h-6 bg-brand rounded"></span>
+                    {{ getTitle }}
+                </h2>
+                
+                <div v-if="filteredContent.length === 0" class="text-center py-20 bg-gray-900/50 rounded-xl border border-gray-800">
+                    <i class="fas fa-film text-6xl text-gray-700 mb-4"></i>
+                    <p class="text-gray-400">لا يوجد محتوى حالياً. تأكد من تشغيل البوت من GitHub Actions.</p>
+                </div>
+
+                <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                    <div v-for="item in filteredContent" :key="item.id" @click="openDetails(item)" class="poster-card relative cursor-pointer rounded-lg overflow-hidden bg-gray-800 aspect-[2/3] group">
+                        <img :src="item.poster_path" class="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition" loading="lazy">
+                        
+                        <div class="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-0 group-hover:opacity-100 transition duration-300 flex flex-col justify-end p-3">
+                            <h3 class="font-bold text-sm text-white mb-1 leading-tight">{{ item.title }}</h3>
+                            <div class="flex justify-between items-center text-[10px] text-gray-300">
+                                <span>{{ new Date(item.release_date || item.first_air_date).getFullYear() }}</span>
+                                <span class="text-green-400 font-bold">98% مطابقة</span>
+                            </div>
+                        </div>
+
+                        <div class="absolute top-2 left-2 px-1.5 py-0.5 rounded text-[8px] font-bold text-white uppercase tracking-wider shadow-lg" 
+                             :class="item.type === 'movie' ? 'bg-brand' : 'bg-blue-600'">
+                            {{ item.type === 'movie' ? 'FILM' : 'SERIES' }}
                         </div>
                     </div>
-                    <div class="absolute top-2 right-2 bg-brand text-white text-xs font-bold px-2 py-1 rounded">
-                        ★ {{ item.vote_average }}
-                    </div>
                 </div>
             </div>
         </div>
 
-        <div v-else-if="view==='details' && selectedItem" class="animate-fade-in">
-            <button @click="view='home'" class="mb-4 text-gray-400 hover:text-white"><i class="fas fa-arrow-right"></i> عودة</button>
-            <div class="relative h-[60vh] rounded-xl overflow-hidden mb-8 bg-cover bg-center" :style="`background-image: url('${selectedItem.backdrop_path}')`">
-                <div class="absolute inset-0 bg-gradient-to-t from-[#141414] via-[#141414]/60 to-transparent"></div>
-                <div class="absolute bottom-0 w-full p-8 md:p-12">
-                    <h1 class="text-4xl md:text-6xl font-black mb-4">{{ selectedItem.title }}</h1>
-                    <div class="flex gap-4 mb-6">
-                        <button v-if="selectedItem.type === 'movie'" @click="playMovie" class="bg-brand text-white px-8 py-3 rounded font-bold hover:bg-red-700 transition">
-                            <i class="fas fa-play"></i> مشاهدة الآن
-                        </button>
-                        <button v-else class="bg-brand text-white px-8 py-3 rounded font-bold hover:bg-red-700 transition">
-                            <i class="fas fa-layer-group"></i> عرض الحلقات
-                        </button>
-                        <button @click="toggleFav(selectedItem)" class="bg-gray-800 text-white px-4 py-3 rounded font-bold hover:bg-gray-700">
-                            <i :class="isFav(selectedItem.id) ? 'fas fa-check text-green-500' : 'fas fa-plus'"></i>
-                        </button>
+        <div v-if="view === 'details' && selected" class="animate-fade-in bg-[#141414] min-h-screen">
+            <button @click="view='home'" class="fixed top-6 left-6 z-50 bg-black/50 hover:bg-brand w-12 h-12 rounded-full text-white flex items-center justify-center backdrop-blur border border-white/10 transition">
+                <i class="fas fa-times text-xl"></i>
+            </button>
+
+            <div class="relative h-[60vh]">
+                <div class="absolute inset-0 bg-cover bg-center" :style="`background-image: url('${selected.backdrop_path}')`"></div>
+                <div class="absolute inset-0 bg-gradient-to-t from-[#141414] via-[#141414]/80 to-transparent"></div>
+                
+                <div class="absolute bottom-0 w-full container mx-auto px-4 pb-10 flex flex-col md:flex-row items-end gap-8">
+                    <img :src="selected.poster_path" class="w-48 rounded shadow-2xl border-2 border-gray-700 hidden md:block">
+                    <div class="mb-4">
+                        <h1 class="text-4xl md:text-6xl font-black mb-2">{{ selected.title }}</h1>
+                        <div class="flex gap-4 text-sm text-gray-400 mb-6">
+                            <span class="border border-gray-600 px-2 rounded">{{ new Date(selected.release_date || selected.first_air_date).getFullYear() }}</span>
+                            <span>{{ selected.type==='movie'?'1س 45د':'3 مواسم' }}</span>
+                            <span class="bg-gray-800 px-1 rounded text-white text-xs py-0.5">HD</span>
+                        </div>
+                        
+                        <div class="flex gap-4">
+                            <button v-if="selected.type === 'movie'" @click="playNow" class="bg-brand hover:bg-red-700 text-white px-10 py-3 rounded font-bold transition flex items-center gap-3 shadow-lg shadow-red-900/40">
+                                <i class="fas fa-play"></i> مشاهدة الفيلم
+                            </button>
+                            <button v-else class="bg-brand hover:bg-red-700 text-white px-10 py-3 rounded font-bold transition flex items-center gap-3 shadow-lg">
+                                <i class="fas fa-layer-group"></i> استعراض الحلقات
+                            </button>
+                        </div>
                     </div>
-                    <p class="text-gray-300 max-w-2xl text-lg">{{ selectedItem.overview }}</p>
                 </div>
             </div>
 
-            <div v-if="isPlaying" class="bg-black rounded-xl overflow-hidden aspect-video shadow-2xl border border-gray-800 mb-20">
-                <iframe v-if="serverUrl" :src="serverUrl" class="w-full h-full" frameborder="0" allowfullscreen></iframe>
-                <div v-else class="w-full h-full flex items-center justify-center text-gray-500">جاري جلب السيرفر...</div>
+            <div v-if="isPlaying" class="container mx-auto px-4 py-10" id="player">
+                <div class="bg-black aspect-video w-full rounded-xl overflow-hidden shadow-2xl border border-gray-800 relative">
+                    <iframe v-if="serverUrl" :src="serverUrl" class="w-full h-full" frameborder="0" allowfullscreen></iframe>
+                    <div v-else class="absolute inset-0 flex flex-col items-center justify-center text-gray-500">
+                        <i class="fas fa-circle-notch fa-spin text-3xl mb-4 text-brand"></i>
+                        <p>جاري جلب أفضل سيرفر للمشاهدة...</p>
+                    </div>
+                </div>
             </div>
-            
-            <div v-if="selectedItem.type === 'series'" class="mb-20">
-                <h3 class="text-2xl font-bold mb-4">المواسم</h3>
-                <div class="flex gap-4 overflow-x-auto pb-4">
-                    <button v-for="s in seasons" :key="s.id" @click="loadEp(s)" class="bg-gray-800 hover:bg-brand px-6 py-3 rounded-lg font-bold min-w-[120px]">
+
+            <div v-if="selected.type === 'series'" class="container mx-auto px-4 pb-20">
+                <h3 class="text-2xl font-bold mb-6 border-b border-gray-800 pb-2">الحلقات</h3>
+                
+                <div class="flex gap-3 mb-6 overflow-x-auto pb-2 hide-scroll">
+                    <button v-for="s in seasons" :key="s.id" @click="loadEp(s)" class="px-6 py-2 rounded-full font-bold transition whitespace-nowrap" :class="currentSeason?.id===s.id?'bg-white text-black':'bg-gray-800 text-gray-400 hover:bg-gray-700'">
                         {{ s.name }}
                     </button>
                 </div>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
-                    <div v-for="ep in episodes" :key="ep.id" @click="playEp(ep)" class="bg-gray-800 p-3 rounded hover:bg-gray-700 cursor-pointer flex gap-4">
-                        <img :src="ep.still_path" class="w-32 rounded object-cover">
-                        <div>
-                            <h4 class="font-bold text-sm">حلقة {{ ep.episode_number }}</h4>
-                            <span class="text-xs text-gray-400">{{ ep.name }}</span>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div v-for="ep in episodes" :key="ep.id" @click="playEp(ep)" class="flex gap-4 p-4 rounded-lg hover:bg-gray-800 cursor-pointer transition border border-transparent hover:border-gray-700 group">
+                        <div class="w-32 aspect-video bg-gray-900 rounded overflow-hidden relative">
+                            <img :src="ep.still_path" class="w-full h-full object-cover opacity-70 group-hover:opacity-100">
+                            <i class="fas fa-play absolute inset-0 m-auto text-white opacity-0 group-hover:opacity-100 transition text-shadow"></i>
+                        </div>
+                        <div class="flex flex-col justify-center">
+                            <h4 class="font-bold text-gray-200 group-hover:text-white">{{ ep.name }}</h4>
+                            <span class="text-xs text-gray-500">حلقة {{ ep.episode_number }}</span>
                         </div>
                     </div>
                 </div>
             </div>
+
         </div>
+
     </main>
 </div>
 
 <script>
-    const { createApp, ref, onMounted, computed } = Vue;
-    // مفاتيحك الصحيحة
+    const { createApp, ref, computed, onMounted } = Vue;
+
+    // ⚠️ مفاتيحك الخاصة (مدمجة جاهزة)
     const SUPABASE_URL = 'https://wzeqtnkzytmlmeujaxnl.supabase.co';
     const SUPABASE_KEY = 'EyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind6ZXF0bmt6eXRtbG1ldWpheG5sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA4NjMwNDEsImV4cCI6MjA4NjQzOTA0MX0.xwu-ZpaX77nxGHH4HlRjQ0Cxy0KrbdT6xBRAvZw70uU';
+    
     const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     createApp({
         setup() {
             const view = ref('home');
             const loading = ref(true);
-            const content = ref([]);
-            const favs = ref(JSON.parse(localStorage.getItem('favs')||'[]'));
-            const selectedItem = ref(null);
+            const scrolled = ref(false);
+            const search = ref('');
+            const filter = ref('all');
+            
+            const movies = ref([]);
+            const series = ref([]);
+            
+            const selected = ref(null);
             const isPlaying = ref(false);
             const serverUrl = ref('');
+            
             const seasons = ref([]);
+            const currentSeason = ref(null);
             const episodes = ref([]);
 
             // جلب البيانات
-            const fetchData = async () => {
-                loading.value = true;
-                const { data: m } = await supabase.from('movies').select('*').limit(50).order('added_at', {ascending: false});
-                const { data: s } = await supabase.from('series').select('*').limit(50).order('added_at', {ascending: false});
-                
-                content.value = [
-                    ...(m || []).map(x => ({...x, type: 'movie'})),
-                    ...(s || []).map(x => ({...x, type: 'series'}))
-                ].sort((a,b) => new Date(b.added_at) - new Date(a.added_at));
-                loading.value = false;
+            const init = async () => {
+                try {
+                    const { data: m } = await supabase.from('movies').select('*').limit(40).order('added_at', {ascending: false});
+                    if (m) movies.value = m.map(x => ({...x, type: 'movie'}));
+
+                    const { data: s } = await supabase.from('series').select('*').limit(40).order('added_at', {ascending: false});
+                    if (s) series.value = s.map(x => ({...x, type: 'series'}));
+                } catch (e) {
+                    console.error("Connection Error:", e);
+                } finally {
+                    loading.value = false;
+                }
             };
 
-            const filteredContent = computed(() => view.value === 'favorites' ? favs.value : content.value);
+            // تجميع المحتوى
+            const filteredContent = computed(() => {
+                let all = [...movies.value, ...series.value].sort((a,b) => new Date(b.added_at) - new Date(a.added_at));
+                
+                if (search.value) return all.filter(i => i.title.toLowerCase().includes(search.value.toLowerCase()));
+                if (filter.value === 'movie') return all.filter(i => i.type === 'movie');
+                if (filter.value === 'series') return all.filter(i => i.type === 'series');
+                
+                return all;
+            });
 
+            // البوستر الرئيسي
+            const featured = computed(() => filteredContent.value[0]);
+            
+            // العنوان
+            const getTitle = computed(() => {
+                if (search.value) return 'نتائج البحث';
+                if (filter.value === 'movie') return 'أحدث الأفلام';
+                if (filter.value === 'series') return 'أحدث المسلسلات';
+                return 'أضيف حديثاً';
+            });
+
+            // فتح التفاصيل
             const openDetails = async (item) => {
-                selectedItem.value = item;
+                selected.value = item;
                 view.value = 'details';
                 window.scrollTo(0,0);
                 isPlaying.value = false;
                 seasons.value = [];
                 episodes.value = [];
 
-                if(item.type === 'movie') {
-                    const { data } = await supabase.from('servers').select('*').eq('movie_id', item.id).limit(1).single();
-                    if(data) serverUrl.value = data.embed_url;
-                } else {
-                    const { data } = await supabase.from('seasons').select('*').eq('series_id', item.id);
-                    if(data) seasons.value = data;
+                if (item.type === 'series') {
+                    const { data } = await supabase.from('seasons').select('*').eq('series_id', item.id).order('season_number', {ascending: true});
+                    if(data) {
+                        seasons.value = data;
+                        if(data.length > 0) loadEp(data[0]);
+                    }
                 }
             };
 
-            const playMovie = () => { isPlaying.value = true; };
-            
+            // تشغيل الفيلم
+            const playNow = async () => {
+                isPlaying.value = true;
+                setTimeout(() => document.getElementById('player').scrollIntoView({behavior:'smooth'}), 100);
+                const { data } = await supabase.from('servers').select('*').eq('movie_id', selected.value.id).limit(1).single();
+                serverUrl.value = data ? data.embed_url : ''; 
+            };
+
+            // تحميل الحلقات
             const loadEp = async (season) => {
-                const { data } = await supabase.from('episodes').select('*').eq('season_id', season.id);
+                currentSeason.value = season;
+                const { data } = await supabase.from('episodes').select('*').eq('season_id', season.id).order('episode_number', {ascending: true});
                 if(data) episodes.value = data;
             };
 
+            // تشغيل الحلقة
             const playEp = async (ep) => {
-                // محاكاة تشغيل الحلقة
-                const { data } = await supabase.from('servers').select('*').eq('episode_id', ep.id).limit(1).single();
-                serverUrl.value = data ? data.embed_url : '';
                 isPlaying.value = true;
                 window.scrollTo(0,0);
+                const { data } = await supabase.from('servers').select('*').eq('episode_id', ep.id).limit(1).single();
+                serverUrl.value = data ? data.embed_url : '';
             };
+            
+            const goHome = () => {
+                view.value = 'home';
+                search.value = '';
+                filter.value = 'all';
+                window.scrollTo(0,0);
+            }
 
-            const toggleFav = (item) => {
-                const idx = favs.value.findIndex(x => x.id === item.id);
-                if(idx > -1) favs.value.splice(idx, 1);
-                else favs.value.push(item);
-                localStorage.setItem('favs', JSON.stringify(favs.value));
+            onMounted(() => {
+                init();
+                window.addEventListener('scroll', () => scrolled.value = window.scrollY > 50);
+            });
+
+            return { 
+                view, loading, search, filter, scrolled,
+                filteredContent, featured, getTitle,
+                selected, openDetails, playNow, isPlaying, serverUrl,
+                seasons, currentSeason, episodes, loadEp, playEp, goHome
             };
-            const isFav = (id) => favs.value.some(x => x.id === id);
-
-            onMounted(fetchData);
-
-            return { view, loading, filteredContent, selectedItem, openDetails, playMovie, isPlaying, serverUrl, seasons, episodes, loadEp, playEp, toggleFav, isFav };
         }
     }).mount('#app');
 </script>
