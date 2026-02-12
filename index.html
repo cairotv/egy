@@ -3,155 +3,187 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>C I N E M A • P R O</title>
+    <title>CINEMA MAX | مشاهدة ممتعة</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script>
         tailwind.config = {
             darkMode: 'class',
-            theme: { extend: { colors: { primary: '#E50914', dark: '#141414' } } }
+            theme: { extend: { colors: { brand: '#E50914', dark: '#141414' } } }
         }
     </script>
     <style>
-        body { background-color: #141414; color: white; font-family: 'Segoe UI', sans-serif; }
-        .hide-scroll::-webkit-scrollbar { display: none; }
-        .glass { background: rgba(20, 20, 20, 0.8); backdrop-filter: blur(10px); }
+        body { background-color: #141414; color: white; }
+        .loader { border-top-color: #E50914; -webkit-animation: spinner 1.5s linear infinite; animation: spinner 1.5s linear infinite; }
+        @keyframes spinner { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
-    <div id="app" class="min-h-screen flex flex-col">
-        
-        <header class="glass fixed w-full z-50 border-b border-gray-800">
-            <div class="container mx-auto px-4 h-16 flex items-center justify-between">
-                <h1 class="text-3xl font-black text-primary tracking-tighter cursor-pointer" @click="view = 'home'">CINEMA<span class="text-white">PRO</span></h1>
-                <div class="relative w-1/3 hidden md:block">
-                    <input v-model="searchQuery" @input="searchMovies" type="text" placeholder="ابحث عن فيلم، ممثل، أو تصنيف..." class="w-full bg-black/50 border border-gray-700 rounded-full py-2 px-5 focus:border-primary focus:outline-none transition">
+
+<div id="app" class="min-h-screen flex flex-col font-sans">
+    <nav class="fixed w-full z-50 bg-black/90 backdrop-blur border-b border-gray-800">
+        <div class="container mx-auto px-4 h-16 flex items-center justify-between">
+            <h1 class="text-3xl font-black text-brand tracking-tighter cursor-pointer" @click="view='home'">CINEMA<span class="text-white">MAX</span></h1>
+            <div class="flex gap-4">
+                <button @click="view='home'; filter='all'" class="text-gray-300 hover:text-white font-bold">الرئيسية</button>
+                <button @click="view='favorites'" class="text-gray-300 hover:text-white font-bold">مفضلتي</button>
+            </div>
+        </div>
+    </nav>
+
+    <main class="flex-grow pt-20 px-4 container mx-auto">
+        <div v-if="loading" class="flex justify-center items-center h-[80vh]">
+            <div class="loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-16 w-16"></div>
+        </div>
+
+        <div v-else-if="view==='home' || view==='favorites'" class="animate-fade-in">
+            <div v-if="filteredContent.length === 0" class="text-center mt-20 text-gray-500 text-xl">
+                لا توجد أفلام حالياً. تأكد من تشغيل البوت!
+            </div>
+            <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                <div v-for="item in filteredContent" :key="item.id" @click="openDetails(item)" class="group relative cursor-pointer rounded-lg overflow-hidden transition hover:scale-105 duration-300">
+                    <img :src="item.poster_path" class="w-full h-full object-cover aspect-[2/3]" loading="lazy">
+                    <div class="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-0 group-hover:opacity-100 transition">
+                        <div class="absolute bottom-0 p-4">
+                            <h3 class="font-bold text-sm">{{ item.title }}</h3>
+                            <span class="text-xs text-brand font-bold">{{ item.type === 'movie' ? 'فيلم' : 'مسلسل' }}</span>
+                        </div>
+                    </div>
+                    <div class="absolute top-2 right-2 bg-brand text-white text-xs font-bold px-2 py-1 rounded">
+                        ★ {{ item.vote_average }}
+                    </div>
                 </div>
             </div>
-        </header>
+        </div>
 
-        <main class="flex-grow pt-20 pb-10 px-4 container mx-auto">
+        <div v-else-if="view==='details' && selectedItem" class="animate-fade-in">
+            <button @click="view='home'" class="mb-4 text-gray-400 hover:text-white"><i class="fas fa-arrow-right"></i> عودة</button>
+            <div class="relative h-[60vh] rounded-xl overflow-hidden mb-8 bg-cover bg-center" :style="`background-image: url('${selectedItem.backdrop_path}')`">
+                <div class="absolute inset-0 bg-gradient-to-t from-[#141414] via-[#141414]/60 to-transparent"></div>
+                <div class="absolute bottom-0 w-full p-8 md:p-12">
+                    <h1 class="text-4xl md:text-6xl font-black mb-4">{{ selectedItem.title }}</h1>
+                    <div class="flex gap-4 mb-6">
+                        <button v-if="selectedItem.type === 'movie'" @click="playMovie" class="bg-brand text-white px-8 py-3 rounded font-bold hover:bg-red-700 transition">
+                            <i class="fas fa-play"></i> مشاهدة الآن
+                        </button>
+                        <button v-else class="bg-brand text-white px-8 py-3 rounded font-bold hover:bg-red-700 transition">
+                            <i class="fas fa-layer-group"></i> عرض الحلقات
+                        </button>
+                        <button @click="toggleFav(selectedItem)" class="bg-gray-800 text-white px-4 py-3 rounded font-bold hover:bg-gray-700">
+                            <i :class="isFav(selectedItem.id) ? 'fas fa-check text-green-500' : 'fas fa-plus'"></i>
+                        </button>
+                    </div>
+                    <p class="text-gray-300 max-w-2xl text-lg">{{ selectedItem.overview }}</p>
+                </div>
+            </div>
+
+            <div v-if="isPlaying" class="bg-black rounded-xl overflow-hidden aspect-video shadow-2xl border border-gray-800 mb-20">
+                <iframe v-if="serverUrl" :src="serverUrl" class="w-full h-full" frameborder="0" allowfullscreen></iframe>
+                <div v-else class="w-full h-full flex items-center justify-center text-gray-500">جاري جلب السيرفر...</div>
+            </div>
             
-            <div v-if="loading" class="grid grid-cols-2 md:grid-cols-5 gap-4">
-                <div v-for="n in 10" :key="n" class="animate-pulse bg-gray-800 h-80 rounded-xl"></div>
-            </div>
-
-            <div v-else-if="view === 'home'">
-                <h2 class="text-2xl font-bold mb-6 border-r-4 border-primary pr-3">الأحدث والاقوى</h2>
-                <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6">
-                    <div v-for="movie in movies" :key="movie.id" @click="openMovie(movie)" class="group cursor-pointer relative">
-                        <div class="overflow-hidden rounded-xl aspect-[2/3]">
-                            <img :src="'https://image.tmdb.org/t/p/w500' + movie.poster" class="object-cover w-full h-full group-hover:scale-110 transition duration-500">
-                        </div>
-                        <div class="absolute top-2 right-2 bg-black/70 backdrop-blur px-2 py-1 rounded text-xs font-bold text-yellow-400">
-                            ★ {{ movie.rating.toFixed(1) }}
-                        </div>
-                        <h3 class="mt-2 font-bold truncate group-hover:text-primary transition">{{ movie.title }}</h3>
-                        <p class="text-xs text-gray-400">{{ new Date(movie.created_at).getFullYear() }}</p>
-                    </div>
+            <div v-if="selectedItem.type === 'series'" class="mb-20">
+                <h3 class="text-2xl font-bold mb-4">المواسم</h3>
+                <div class="flex gap-4 overflow-x-auto pb-4">
+                    <button v-for="s in seasons" :key="s.id" @click="loadEp(s)" class="bg-gray-800 hover:bg-brand px-6 py-3 rounded-lg font-bold min-w-[120px]">
+                        {{ s.name }}
+                    </button>
                 </div>
-            </div>
-
-            <div v-else-if="view === 'movie'" class="animate-fade-in">
-                <div class="relative h-[70vh] w-full rounded-2xl overflow-hidden mb-10">
-                    <div class="absolute inset-0 bg-gradient-to-t from-[#141414] via-transparent to-transparent z-10"></div>
-                    <img :src="'https://image.tmdb.org/t/p/original' + selectedMovie.backdrop" class="w-full h-full object-cover opacity-60">
-                    
-                    <div class="absolute bottom-0 left-0 w-full p-10 z-20 flex flex-col md:flex-row items-end gap-8">
-                        <img :src="'https://image.tmdb.org/t/p/w500' + selectedMovie.poster" class="w-48 rounded-lg shadow-2xl border-2 border-gray-700 hidden md:block">
-                        <div class="flex-1">
-                            <h1 class="text-5xl font-black mb-4">{{ selectedMovie.title }}</h1>
-                            <div class="flex gap-3 mb-6">
-                                <span v-for="genre in selectedMovie.genres" :key="genre" class="bg-gray-800 px-3 py-1 rounded-full text-xs text-gray-300">{{ genre }}</span>
-                            </div>
-                            <p class="text-gray-300 max-w-2xl text-lg leading-relaxed mb-6">{{ selectedMovie.overview }}</p>
-                            
-                            <div class="flex gap-4">
-                                <button @click="playMovie" class="bg-primary hover:bg-red-700 text-white px-8 py-3 rounded-lg font-bold flex items-center gap-2 transition">
-                                    ▶ مشاهدة الآن
-                                </button>
-                                <button class="bg-gray-800 hover:bg-gray-700 px-8 py-3 rounded-lg font-bold transition">
-                                    + قائمتي
-                                </button>
-                            </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+                    <div v-for="ep in episodes" :key="ep.id" @click="playEp(ep)" class="bg-gray-800 p-3 rounded hover:bg-gray-700 cursor-pointer flex gap-4">
+                        <img :src="ep.still_path" class="w-32 rounded object-cover">
+                        <div>
+                            <h4 class="font-bold text-sm">حلقة {{ ep.episode_number }}</h4>
+                            <span class="text-xs text-gray-400">{{ ep.name }}</span>
                         </div>
                     </div>
                 </div>
-
-                <div v-if="isPlaying" class="fixed inset-0 z-[100] bg-black flex items-center justify-center">
-                    <button @click="isPlaying = false" class="absolute top-5 right-5 text-white text-2xl z-50">✕</button>
-                    <iframe :src="currentServer" class="w-full h-full border-0" allowfullscreen></iframe>
-                </div>
-
-                <h3 class="text-2xl font-bold mb-4">طاقم التمثيل</h3>
-                <div class="flex gap-4 overflow-x-auto pb-4 hide-scroll">
-                    <div v-for="actor in selectedMovie.cast" :key="actor.name" class="min-w-[120px] text-center">
-                        <img :src="actor.img ? 'https://image.tmdb.org/t/p/w200' + actor.img : 'https://placehold.co/200x300'" class="w-24 h-24 rounded-full object-cover mx-auto mb-2 border border-gray-700">
-                        <p class="text-sm font-bold">{{ actor.name }}</p>
-                        <p class="text-xs text-gray-500">{{ actor.role }}</p>
-                    </div>
-                </div>
             </div>
+        </div>
+    </main>
+</div>
 
-        </main>
-    </div>
+<script>
+    const { createApp, ref, onMounted, computed } = Vue;
+    // مفاتيحك الصحيحة
+    const SUPABASE_URL = 'https://wzeqtnkzytmlmeujaxnl.supabase.co';
+    const SUPABASE_KEY = 'EyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind6ZXF0bmt6eXRtbG1ldWpheG5sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA4NjMwNDEsImV4cCI6MjA4NjQzOTA0MX0.xwu-ZpaX77nxGHH4HlRjQ0Cxy0KrbdT6xBRAvZw70uU';
+    const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    <script>
-        const { createApp, ref, onMounted } = Vue;
-        const _supabase = supabase.createClient('URL_HERE', 'KEY_HERE');
+    createApp({
+        setup() {
+            const view = ref('home');
+            const loading = ref(true);
+            const content = ref([]);
+            const favs = ref(JSON.parse(localStorage.getItem('favs')||'[]'));
+            const selectedItem = ref(null);
+            const isPlaying = ref(false);
+            const serverUrl = ref('');
+            const seasons = ref([]);
+            const episodes = ref([]);
 
-        createApp({
-            setup() {
-                const view = ref('home');
-                const movies = ref([]);
-                const loading = ref(true);
-                const selectedMovie = ref(null);
-                const isPlaying = ref(false);
-                const currentServer = ref('');
-                const searchQuery = ref('');
+            // جلب البيانات
+            const fetchData = async () => {
+                loading.value = true;
+                const { data: m } = await supabase.from('movies').select('*').limit(50).order('added_at', {ascending: false});
+                const { data: s } = await supabase.from('series').select('*').limit(50).order('added_at', {ascending: false});
+                
+                content.value = [
+                    ...(m || []).map(x => ({...x, type: 'movie'})),
+                    ...(s || []).map(x => ({...x, type: 'series'}))
+                ].sort((a,b) => new Date(b.added_at) - new Date(a.added_at));
+                loading.value = false;
+            };
 
-                // Fetch Movies using the Advanced Table
-                const fetchMovies = async () => {
-                    loading.value = true;
-                    let query = _supabase.from('advanced_movies').select('*').order('created_at', { ascending: false }).limit(50);
-                    
-                    if (searchQuery.value) {
-                        query = _supabase.from('advanced_movies').select('*').textSearch('search_vector', searchQuery.value);
-                    }
+            const filteredContent = computed(() => view.value === 'favorites' ? favs.value : content.value);
 
-                    const { data, error } = await query;
-                    if (data) movies.value = data;
-                    loading.value = false;
-                };
+            const openDetails = async (item) => {
+                selectedItem.value = item;
+                view.value = 'details';
+                window.scrollTo(0,0);
+                isPlaying.value = false;
+                seasons.value = [];
+                episodes.value = [];
 
-                const openMovie = (movie) => {
-                    selectedMovie.value = movie;
-                    view.value = 'movie';
-                    window.scrollTo(0, 0);
-                };
+                if(item.type === 'movie') {
+                    const { data } = await supabase.from('servers').select('*').eq('movie_id', item.id).limit(1).single();
+                    if(data) serverUrl.value = data.embed_url;
+                } else {
+                    const { data } = await supabase.from('seasons').select('*').eq('series_id', item.id);
+                    if(data) seasons.value = data;
+                }
+            };
 
-                const searchMovies = _.debounce(() => {
-                    fetchMovies();
-                }, 500); // Debounce search to save API calls
+            const playMovie = () => { isPlaying.value = true; };
+            
+            const loadEp = async (season) => {
+                const { data } = await supabase.from('episodes').select('*').eq('season_id', season.id);
+                if(data) episodes.value = data;
+            };
 
-                const playMovie = () => {
-                    // Logic to select best server
-                    if (selectedMovie.value.servers && selectedMovie.value.servers[0]) {
-                        currentServer.value = selectedMovie.value.servers[0].url;
-                        isPlaying.value = true;
-                    } else {
-                        alert('عذراً، السيرفر جاري تجهيزه بواسطة الذكاء الاصطناعي!');
-                    }
-                };
+            const playEp = async (ep) => {
+                // محاكاة تشغيل الحلقة
+                const { data } = await supabase.from('servers').select('*').eq('episode_id', ep.id).limit(1).single();
+                serverUrl.value = data ? data.embed_url : '';
+                isPlaying.value = true;
+                window.scrollTo(0,0);
+            };
 
-                onMounted(() => {
-                    fetchMovies();
-                });
+            const toggleFav = (item) => {
+                const idx = favs.value.findIndex(x => x.id === item.id);
+                if(idx > -1) favs.value.splice(idx, 1);
+                else favs.value.push(item);
+                localStorage.setItem('favs', JSON.stringify(favs.value));
+            };
+            const isFav = (id) => favs.value.some(x => x.id === id);
 
-                return { view, movies, loading, selectedMovie, openMovie, isPlaying, playMovie, currentServer, searchQuery, searchMovies };
-            }
-        }).mount('#app');
-    </script>
+            onMounted(fetchData);
+
+            return { view, loading, filteredContent, selectedItem, openDetails, playMovie, isPlaying, serverUrl, seasons, episodes, loadEp, playEp, toggleFav, isFav };
+        }
+    }).mount('#app');
+</script>
 </body>
 </html>
